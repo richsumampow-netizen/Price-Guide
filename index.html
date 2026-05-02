@@ -1801,8 +1801,25 @@ function convertToBase64(file) {
   return new Promise(function(resolve, reject) {
     var reader = new FileReader();
     reader.onload = function() {
-      var base64 = reader.result.split(',')[1];
-      resolve(base64);
+      var img = new Image();
+      img.onload = function() {
+        // Resize if needed to stay under 5MB API limit
+        var maxDim = 1600; // max width or height in pixels
+        var w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+          else { w = Math.round(w * maxDim / h); h = maxDim; }
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        var base64 = dataUrl.split(',')[1];
+        resolve(base64);
+      };
+      img.onerror = function() { reject(new Error('Could not load image.')); };
+      img.src = reader.result;
     };
     reader.onerror = function() { reject(new Error('Could not read image file.')); };
     reader.readAsDataURL(file);
@@ -1837,8 +1854,7 @@ function sendToClaudeAPI(base64Image, mediaType) {
     '- If collection/color is mentioned (like "White" or "Whites & Neutrals"), include it\n' +
     '- Return ONLY the JSON, nothing else';
 
-  var imgType = mediaType || 'image/jpeg';
-  if (imgType === 'image/heic' || imgType === 'image/heif') imgType = 'image/jpeg';
+  var imgType = 'image/jpeg'; // always JPEG after canvas compression
 
   var body = {
     model: 'claude-haiku-4-5-20251001',
