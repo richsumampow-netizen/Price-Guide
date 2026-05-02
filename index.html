@@ -8,8 +8,31 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f4f8; color: #1a2a3a; min-height: 100vh; }
 
-  header { background: #0d1b2a; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+  header { background: #0d1b2a; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
   .logo-svg { height: 48px; width: auto; }
+  .settings-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 8px; opacity: 0.7; }
+  .settings-btn:active { opacity: 1; }
+
+  .scan-card { background: linear-gradient(135deg, #1a3a5c 0%, #2d6a9f 100%); border-radius: 14px; padding: 20px; margin-bottom: 16px; text-align: center; color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .scan-card p { font-size: 13px; opacity: 0.85; margin-top: 8px; }
+  .btn-scan { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; border: 2px solid white; border-radius: 12px; background: rgba(255,255,255,0.15); color: white; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .btn-scan:active { background: rgba(255,255,255,0.3); }
+
+  .scan-status { display: none; background: #ebf4ff; border: 2px solid #2d6a9f; border-radius: 14px; padding: 20px; margin-bottom: 16px; text-align: center; }
+  .scan-status.show { display: block; }
+  .scan-status .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #e2e8f0; border-top-color: #2d6a9f; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .scan-status p { font-size: 14px; font-weight: 600; color: #1a3a5c; }
+
+  .scan-results { display: none; background: white; border: 2px solid #38a169; border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+  .scan-results.show { display: block; }
+  .scan-results-title { font-size: 15px; font-weight: 700; color: #38a169; margin-bottom: 12px; }
+  .scan-results-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 14px; }
+  .scan-results-table th { text-align: left; padding: 6px 8px; background: #f7fafc; color: #4a6080; font-size: 11px; text-transform: uppercase; }
+  .scan-results-table td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+  .scan-error { display: none; background: #fff5f5; border: 2px solid #fc8181; border-radius: 14px; padding: 20px; margin-bottom: 16px; text-align: center; }
+  .scan-error.show { display: block; }
+  .scan-error p { color: #c53030; font-size: 14px; font-weight: 600; }
 
   .tabs { display: flex; background: white; border-bottom: 2px solid #e2e8f0; }
   .tab { flex: 1; padding: 14px 8px; text-align: center; font-size: 14px; font-weight: 600; color: #7a8fa6; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
@@ -187,6 +210,7 @@
 <body>
 
 <header>
+  <div style="width:40px"></div>
   <svg class="logo-svg" viewBox="0 0 340 80" xmlns="http://www.w3.org/2000/svg">
     <!-- "Blind" text with horizontal slat lines -->
     <defs>
@@ -214,6 +238,7 @@
     <line x1="237" y1="64" x2="237" y2="78" stroke="#1b3a5c" stroke-width="1.5"/>
     <circle cx="237" cy="80" r="3" fill="#1b3a5c"/>
   </svg>
+  <button class="settings-btn" onclick="openSettings()">&#9881;</button>
 </header>
 
 <div class="tabs">
@@ -224,6 +249,35 @@
 
 <!-- NEW QUOTE PANEL -->
 <div class="panel active" id="panel-quote">
+
+  <!-- SCAN MEASUREMENT SHEET -->
+  <div class="scan-card">
+    <button class="btn-scan" type="button" onclick="openScanCamera()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Scan Measurement Sheet
+    </button>
+    <p>Take a photo of your handwritten sheet to auto-create a quote</p>
+    <input type="file" id="scanFileInput" accept="image/*" capture="environment" style="display:none" onchange="onScanFileSelected(event)">
+  </div>
+
+  <div class="scan-status" id="scanStatus">
+    <div class="spinner"></div>
+    <p id="scanStatusText">Reading your measurement sheet...</p>
+  </div>
+
+  <div class="scan-results" id="scanResults">
+    <div class="scan-results-title" id="scanResultsTitle">Scan Complete</div>
+    <div id="scanResultsBody"></div>
+    <button class="btn btn-primary" onclick="confirmScanResults()">Add All to Quote</button>
+    <button class="btn btn-secondary" style="margin-top:10px" onclick="dismissScanResults()">Cancel</button>
+  </div>
+
+  <div class="scan-error" id="scanError">
+    <p id="scanErrorText">Something went wrong.</p>
+    <button class="btn btn-secondary" style="margin-top:10px" onclick="dismissScanError()">OK</button>
+  </div>
+
+  <div style="text-align:center;color:#7a8fa6;font-size:13px;font-weight:600;margin-bottom:16px">— OR ENTER MANUALLY —</div>
 
   <div class="card">
     <div class="card-title">Step 1 — Select Product</div>
@@ -424,6 +478,19 @@
   </div>
   <div id="savedList"></div>
   <div class="bottom-spacer"></div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Settings</div>
+    <label>Anthropic API Key</label>
+    <input type="password" id="inp-api-key" placeholder="sk-ant-...">
+    <p style="font-size:12px;color:#7a8fa6;margin:-8px 0 14px">Get your key at <strong>console.anthropic.com</strong> &rarr; API Keys. Stored locally on this device only.</p>
+    <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+    <button class="btn btn-secondary" style="margin-top:10px" onclick="closeModal()">Cancel</button>
+  </div>
 </div>
 
 <!-- SAVE MODAL -->
@@ -1685,6 +1752,362 @@ function calculateAltaZebra(width, height, errEl) {
     currentAltaZebraCollection +
     '\n' + width + '" W × ' + height + '" H  (bracket: ' + wB + '" W × ' + hB + '" H)');
   currentResult = { manufacturer: 'ALTA', product: 'Zebra Shades', collection: currentAltaZebraCollection, width: width, height: height, msrp: msrp, customerPrice: customerPrice, descLine: 'Zebra Shades · ' + currentAltaZebraCollection };
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+function openSettings() {
+  var key = localStorage.getItem('wt_api_key') || '';
+  document.getElementById('inp-api-key').value = key;
+  document.getElementById('settingsModal').classList.add('show');
+}
+function saveSettings() {
+  var key = (document.getElementById('inp-api-key').value || '').trim();
+  if (key) localStorage.setItem('wt_api_key', key);
+  else localStorage.removeItem('wt_api_key');
+  document.getElementById('settingsModal').classList.remove('show');
+}
+function getApiKey() { return localStorage.getItem('wt_api_key') || ''; }
+
+// ============================================================
+// SCAN MEASUREMENT SHEET
+// ============================================================
+var pendingScanData = null;
+
+function openScanCamera() {
+  if (!getApiKey()) { openSettings(); return; }
+  document.getElementById('scanFileInput').click();
+}
+
+function onScanFileSelected(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  event.target.value = ''; // reset so same file can be re-selected
+  showScanStatus('Reading your measurement sheet...');
+  convertToBase64(file).then(function(b64) {
+    return sendToClaudeAPI(b64, file.type);
+  }).then(function(data) {
+    hideScanStatus();
+    pendingScanData = data;
+    showScanResults(data);
+  }).catch(function(err) {
+    hideScanStatus();
+    showScanError(err.message || 'Something went wrong. Please try again.');
+  });
+}
+
+function convertToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      var base64 = reader.result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = function() { reject(new Error('Could not read image file.')); };
+    reader.readAsDataURL(file);
+  });
+}
+
+function sendToClaudeAPI(base64Image, mediaType) {
+  var apiKey = getApiKey();
+  if (!apiKey) return Promise.reject(new Error('No API key set. Tap the gear icon to add one.'));
+
+  var productList = [];
+  Object.keys(MFR_PRODUCTS).forEach(function(mfr) {
+    MFR_PRODUCTS[mfr].forEach(function(p) { productList.push(mfr + ' - ' + p); });
+  });
+
+  var prompt = 'You are reading a handwritten window treatment measurement sheet. ' +
+    'Extract the information and return ONLY valid JSON (no markdown, no explanation) with this structure:\n' +
+    '{\n' +
+    '  "customerName": "string",\n' +
+    '  "manufacturer": "BXP" or "ALTA",\n' +
+    '  "product": "exact product name from list below",\n' +
+    '  "collection": "collection or color name if written, or empty string",\n' +
+    '  "windows": [\n' +
+    '    {"room": "room name", "width": number, "height": number},\n' +
+    '  ]\n' +
+    '}\n\n' +
+    'Available products:\n' + productList.join('\n') + '\n\n' +
+    'Rules:\n' +
+    '- Width and height are in inches as numbers\n' +
+    '- Measurements are written as "width x height" (e.g. "36 x 61" means width=36, height=61)\n' +
+    '- For product field, use ONLY the product name (e.g. "Faux Wood" not "BXP - Faux Wood")\n' +
+    '- If collection/color is mentioned (like "White" or "Whites & Neutrals"), include it\n' +
+    '- Return ONLY the JSON, nothing else';
+
+  var imgType = mediaType || 'image/jpeg';
+  if (imgType === 'image/heic' || imgType === 'image/heif') imgType = 'image/jpeg';
+
+  var body = {
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 1024,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: imgType, data: base64Image } },
+        { type: 'text', text: prompt }
+      ]
+    }]
+  };
+
+  return fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
+  }).then(function(resp) {
+    if (!resp.ok) {
+      return resp.json().then(function(err) {
+        var msg = (err.error && err.error.message) ? err.error.message : 'API error (' + resp.status + ')';
+        throw new Error(msg);
+      });
+    }
+    return resp.json();
+  }).then(function(result) {
+    var text = result.content[0].text;
+    // Strip markdown code fences if present
+    text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    try {
+      var data = JSON.parse(text);
+      if (!data.windows || !Array.isArray(data.windows) || data.windows.length === 0) {
+        throw new Error('No windows found on the measurement sheet.');
+      }
+      return data;
+    } catch (e) {
+      throw new Error('Could not parse the measurement sheet. Please try a clearer photo.');
+    }
+  });
+}
+
+// ============================================================
+// SCAN RESULTS DISPLAY
+// ============================================================
+function showScanStatus(msg) {
+  document.getElementById('scanStatusText').textContent = msg;
+  document.getElementById('scanStatus').classList.add('show');
+  document.getElementById('scanResults').classList.remove('show');
+  document.getElementById('scanError').classList.remove('show');
+}
+function hideScanStatus() {
+  document.getElementById('scanStatus').classList.remove('show');
+}
+
+function showScanError(msg) {
+  document.getElementById('scanErrorText').textContent = msg;
+  document.getElementById('scanError').classList.add('show');
+}
+function dismissScanError() {
+  document.getElementById('scanError').classList.remove('show');
+}
+
+function showScanResults(data) {
+  var title = (data.customerName ? data.customerName + ' — ' : '') +
+    (data.manufacturer || '') + ' ' + (data.product || '');
+  document.getElementById('scanResultsTitle').textContent = title;
+
+  // Build preview table with prices
+  var html = '<table class="scan-results-table"><thead><tr>' +
+    '<th>Room</th><th>Size</th><th>Price</th></tr></thead><tbody>';
+
+  var total = 0;
+  data.windows.forEach(function(w) {
+    var priceInfo = lookupPrice(data.manufacturer, data.product, data.collection, w.width, w.height);
+    w._priceInfo = priceInfo; // stash for later use
+    var priceStr = priceInfo.error ? '<span style="color:#c53030">' + priceInfo.error + '</span>' : '$' + priceInfo.customerPrice.toLocaleString();
+    if (!priceInfo.error) total += priceInfo.customerPrice;
+    html += '<tr><td>' + (w.room || '—') + '</td><td>' + w.width + '" x ' + w.height + '"</td><td>' + priceStr + '</td></tr>';
+  });
+
+  html += '</tbody></table>';
+  html += '<div style="text-align:right;font-size:18px;font-weight:800;color:#1a3a5c;border-top:2px solid #e2e8f0;padding-top:10px">Total: $' + total.toLocaleString() + '</div>';
+
+  if (data.collection) {
+    html = '<p style="font-size:13px;color:#4a6080;margin-bottom:10px">Collection: <strong>' + data.collection + '</strong></p>' + html;
+  }
+
+  document.getElementById('scanResultsBody').innerHTML = html;
+  document.getElementById('scanResults').classList.add('show');
+}
+
+function dismissScanResults() {
+  document.getElementById('scanResults').classList.remove('show');
+  pendingScanData = null;
+}
+
+function confirmScanResults() {
+  if (!pendingScanData) return;
+  var data = pendingScanData;
+  var added = 0;
+
+  data.windows.forEach(function(w) {
+    var priceInfo = w._priceInfo || lookupPrice(data.manufacturer, data.product, data.collection, w.width, w.height);
+    if (priceInfo.error) return; // skip windows that couldn't be priced
+
+    currentQuote.push({
+      id: Date.now() + added,
+      room: w.room || '',
+      manufacturer: data.manufacturer,
+      product: data.product,
+      collection: priceInfo.collectionUsed || data.collection || '',
+      width: w.width,
+      height: w.height,
+      msrp: priceInfo.msrp,
+      customerPrice: priceInfo.customerPrice,
+      descLine: data.product + ' · ' + (priceInfo.collectionUsed || data.collection || '')
+    });
+    added++;
+  });
+
+  pendingScanData = null;
+  document.getElementById('scanResults').classList.remove('show');
+
+  if (data.customerName) {
+    document.getElementById('quoteName').value = data.customerName;
+  }
+
+  renderCurrentQuote();
+  updateBadge();
+  showTab('current');
+}
+
+// ============================================================
+// PROGRAMMATIC PRICE LOOKUP
+// ============================================================
+function lookupPrice(manufacturer, product, collection, width, height) {
+  var mfr = (manufacturer || '').toUpperCase();
+  var key = PRODUCT_KEY[product];
+  if (!key) return { error: 'Unknown product' };
+
+  var costFactor = COST_FACTORS[key];
+  if (costFactor === undefined) return { error: 'No cost factor' };
+
+  var tables, widthBrackets, heightBrackets, collectionMap, gridId;
+  var collectionUsed = collection || '';
+
+  // Route to the right data tables based on product key
+  if (key === 'fauxwood') {
+    tables = BXP_FAUX_WOOD_TABLES;
+    widthBrackets = BXP_FAUX_WOOD_WIDTH_BRACKETS;
+    heightBrackets = BXP_FAUX_WOOD_HEIGHT_BRACKETS;
+    // Map common names to internal keys
+    var fwKeyMap = { 'Whites & Neutrals': 'wn', 'White': 'wn', 'Whites': 'wn', 'Premium Group 1': 'pg1', 'Premium Group 2': 'pg2' };
+    gridId = fwKeyMap[collection];
+    if (!gridId) gridId = 'wn'; // default to Whites & Neutrals
+    collectionUsed = Object.keys(fwKeyMap).find(function(k) { return fwKeyMap[k] === gridId; }) || collection;
+  } else if (key === 'roller') {
+    tables = BXP_ROLLER_TABLES;
+    widthBrackets = BXP_ROLLER_WIDTH_BRACKETS;
+    heightBrackets = BXP_ROLLER_HEIGHT_BRACKETS;
+    gridId = BXP_ROLLER_COLLECTION_MAP[collection];
+    if (gridId === undefined) {
+      // Try fuzzy match
+      var rKey = Object.keys(BXP_ROLLER_COLLECTION_MAP).find(function(k) {
+        return k.toLowerCase().indexOf((collection || '').toLowerCase()) >= 0;
+      });
+      if (rKey) { gridId = BXP_ROLLER_COLLECTION_MAP[rKey]; collectionUsed = rKey; }
+      else return { error: 'Unknown roller collection' };
+    }
+    gridId = String(gridId);
+  } else if (key === 'vertical') {
+    tables = BXP_VERTICAL_TABLES;
+    widthBrackets = BXP_VERTICAL_WIDTH_BRACKETS;
+    heightBrackets = BXP_VERTICAL_HEIGHT_BRACKETS;
+    gridId = BXP_VERTICAL_COLLECTION_MAP[collection];
+    if (gridId === undefined) {
+      var vKey = Object.keys(BXP_VERTICAL_COLLECTION_MAP).find(function(k) {
+        return k.toLowerCase().indexOf((collection || '').toLowerCase()) >= 0;
+      });
+      if (vKey) { gridId = BXP_VERTICAL_COLLECTION_MAP[vKey]; collectionUsed = vKey; }
+      else return { error: 'Unknown vertical collection' };
+    }
+    gridId = String(gridId);
+  } else if (key === 'cellular') {
+    return { error: 'Cellular requires size/style/opacity — enter manually' };
+  } else if (key === 'alta_aluminum') {
+    tables = ALTA_ALUMINUM_TABLES;
+    widthBrackets = ALTA_ALUMINUM_WIDTH_BRACKETS;
+    heightBrackets = ALTA_ALUMINUM_HEIGHT_BRACKETS;
+    collectionMap = ALTA_ALUMINUM_COLLECTION_MAP;
+    gridId = matchCollection(collectionMap, collection);
+    if (!gridId) return { error: 'Unknown aluminum collection' };
+    collectionUsed = Object.keys(collectionMap).find(function(k) { return collectionMap[k] === gridId; }) || collection;
+  } else if (key === 'alta_fauxwood') {
+    tables = ALTA_FAUXWOOD_TABLES;
+    widthBrackets = ALTA_FAUXWOOD_WIDTH_BRACKETS;
+    heightBrackets = ALTA_FAUXWOOD_HEIGHT_BRACKETS;
+    collectionMap = ALTA_FAUXWOOD_COLLECTION_MAP;
+    gridId = matchCollection(collectionMap, collection);
+    if (!gridId) { gridId = Object.values(collectionMap)[0]; collectionUsed = Object.keys(collectionMap)[0]; }
+  } else if (key === 'alta_realwood') {
+    tables = ALTA_REALWOOD_TABLES;
+    widthBrackets = ALTA_REALWOOD_WIDTH_BRACKETS;
+    heightBrackets = ALTA_REALWOOD_HEIGHT_BRACKETS;
+    collectionMap = ALTA_REALWOOD_COLLECTION_MAP;
+    gridId = matchCollection(collectionMap, collection);
+    if (!gridId) return { error: 'Unknown real wood collection' };
+    collectionUsed = Object.keys(collectionMap).find(function(k) { return collectionMap[k] === gridId; }) || collection;
+  } else if (key === 'alta_roller') {
+    tables = ALTA_ROLLER_TABLES;
+    widthBrackets = ALTA_ROLLER_WIDTH_BRACKETS;
+    heightBrackets = ALTA_ROLLER_HEIGHT_BRACKETS;
+    collectionMap = ALTA_ROLLER_COLLECTION_MAP;
+    gridId = matchCollection(collectionMap, collection);
+    if (!gridId) return { error: 'Unknown ALTA roller collection' };
+    collectionUsed = Object.keys(collectionMap).find(function(k) { return collectionMap[k] === gridId; }) || collection;
+  } else if (key === 'alta_cellular') {
+    tables = ALTA_CELLULAR_TABLES;
+    widthBrackets = ALTA_CELLULAR_WIDTH_BRACKETS;
+    heightBrackets = ALTA_CELLULAR_HEIGHT_BRACKETS;
+    collectionMap = ALTA_CELLULAR_COLLECTION_MAP;
+    gridId = matchCollection(collectionMap, collection);
+    if (!gridId) return { error: 'Unknown ALTA cellular collection' };
+    collectionUsed = Object.keys(collectionMap).find(function(k) { return collectionMap[k] === gridId; }) || collection;
+  } else if (key === 'alta_zebra') {
+    tables = ALTA_ZEBRA_TABLES;
+    widthBrackets = ALTA_ZEBRA_WIDTH_BRACKETS;
+    heightBrackets = ALTA_ZEBRA_HEIGHT_BRACKETS;
+    collectionMap = ALTA_ZEBRA_COLLECTION_MAP;
+    gridId = matchCollection(collectionMap, collection);
+    if (!gridId) return { error: 'Unknown ALTA zebra collection' };
+    collectionUsed = Object.keys(collectionMap).find(function(k) { return collectionMap[k] === gridId; }) || collection;
+  } else {
+    return { error: 'Unsupported product' };
+  }
+
+  var wB = getBracket(width, widthBrackets);
+  var hB = getBracket(height, heightBrackets);
+  if (!wB || !hB) return { error: 'Size out of range' };
+
+  var table = tables[gridId] || {};
+  var row = table[String(hB)] || {};
+  var msrp = row[String(wB)];
+  if (msrp === undefined || msrp === null) return { error: 'No price for this size' };
+
+  return {
+    msrp: msrp,
+    customerPrice: Math.round(msrp * costFactor),
+    wB: wB,
+    hB: hB,
+    collectionUsed: collectionUsed
+  };
+}
+
+function matchCollection(collectionMap, searchTerm) {
+  if (!searchTerm || !collectionMap) return null;
+  // Exact match first
+  if (collectionMap[searchTerm]) return collectionMap[searchTerm];
+  // Case-insensitive partial match
+  var lower = searchTerm.toLowerCase();
+  var found = Object.keys(collectionMap).find(function(k) {
+    return k.toLowerCase().indexOf(lower) >= 0 || lower.indexOf(k.toLowerCase()) >= 0;
+  });
+  return found ? collectionMap[found] : null;
 }
 
 // Init
