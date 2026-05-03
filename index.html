@@ -1837,29 +1837,43 @@ function sendToClaudeAPI(base64Image, mediaType) {
   var apiKey = getApiKey();
   if (!apiKey) return Promise.reject(new Error('No API key set. Tap the gear icon to add one.'));
 
-  var productList = [];
-  Object.keys(MFR_PRODUCTS).forEach(function(mfr) {
-    MFR_PRODUCTS[mfr].forEach(function(p) { productList.push(mfr + ' - ' + p); });
-  });
-
   var prompt = 'You are reading a handwritten window treatment measurement sheet. ' +
-    'Extract the information and return ONLY valid JSON (no markdown, no explanation) with this structure:\n' +
+    'EACH LINE may have a DIFFERENT manufacturer, product, collection, and options. Read each line individually.\n\n' +
+    'Return ONLY valid JSON (no markdown, no code fences, no explanation) with this structure:\n' +
     '{\n' +
-    '  "customerName": "string",\n' +
-    '  "manufacturer": "BXP" or "ALTA",\n' +
-    '  "product": "exact product name from list below",\n' +
-    '  "collection": "collection or color name if written, or empty string",\n' +
+    '  "customerName": "string or empty",\n' +
     '  "windows": [\n' +
-    '    {"room": "room name", "width": number, "height": number},\n' +
+    '    {\n' +
+    '      "room": "room name",\n' +
+    '      "width": number,\n' +
+    '      "height": number,\n' +
+    '      "manufacturer": "BXP" or "ALTA",\n' +
+    '      "product": "product name (see list below)",\n' +
+    '      "collection": "collection/fabric/color name or empty string",\n' +
+    '      "options": ["option1", "option2"]\n' +
+    '    }\n' +
     '  ]\n' +
     '}\n\n' +
-    'Available products:\n' + productList.join('\n') + '\n\n' +
-    'Rules:\n' +
-    '- Width and height are in inches as numbers\n' +
-    '- Measurements are written as "width x height" (e.g. "36 x 61" means width=36, height=61)\n' +
-    '- For product field, use ONLY the product name (e.g. "Faux Wood" not "BXP - Faux Wood")\n' +
-    '- If collection/color is mentioned (like "White" or "Whites & Neutrals"), include it\n' +
-    '- Return ONLY the JSON, nothing else';
+    'MANUFACTURERS AND PRODUCTS:\n' +
+    'BXP products: "Faux Wood", "Roller Shade", "Vertical Blinds", "Cellular Shades"\n' +
+    'ALTA products: "Faux Wood Blinds", "Aluminum Blinds", "Real Wood Blinds", "Roller Shades", "Softstyle Cellular", "Zebra Shades"\n\n' +
+    'OPTIONS (only for BXP Roller Shade):\n' +
+    '- "Cassette" — if cassette is mentioned\n' +
+    '- "Fascia" — if fascia is mentioned\n' +
+    '- "Cordless" — if cordless is mentioned\n' +
+    'For all other products, options should be an empty array [].\n\n' +
+    'COLLECTION EXAMPLES:\n' +
+    '- BXP Faux Wood: "White" or "Whites & Neutrals", "Premium Group 1", "Premium Group 2"\n' +
+    '- BXP Roller Shade: fabric name like "Morgan", "Allure Blackout", "Mia", etc.\n' +
+    '- BXP Vertical: fabric name like "Mia", "Standard Flat", etc.\n' +
+    '- ALTA Faux Wood: "2\" & 2½\" Whites & Neutrals", etc.\n' +
+    '- ALTA Zebra: grid codes like "ABS-1", "ABS-3", etc.\n\n' +
+    'RULES:\n' +
+    '- Width is FIRST number, Height is SECOND number (e.g. "48 x 60" means width=48, height=60)\n' +
+    '- Each line on the sheet is a SEPARATE window — read its product info independently\n' +
+    '- Look for abbreviations: "FW" = Faux Wood, "RS" = Roller Shade, "Vert" = Vertical\n' +
+    '- "White" for BXP Faux Wood means collection "Whites & Neutrals"\n' +
+    '- Return ONLY the JSON object, nothing else';
 
   var imgType = 'image/jpeg'; // always JPEG after canvas compression
 
@@ -1930,29 +1944,35 @@ function dismissScanError() {
 }
 
 function showScanResults(data) {
-  var title = (data.customerName ? data.customerName + ' — ' : '') +
-    (data.manufacturer || '') + ' ' + (data.product || '');
+  var title = data.customerName ? data.customerName : 'Scanned Quote';
   document.getElementById('scanResultsTitle').textContent = title;
 
-  // Build preview table with prices
+  // Build preview table with per-window product info and prices
   var html = '<table class="scan-results-table"><thead><tr>' +
-    '<th>Room</th><th>Size</th><th>Price</th></tr></thead><tbody>';
+    '<th>Room</th><th>Product</th><th>Size</th><th>Price</th></tr></thead><tbody>';
 
   var total = 0;
   data.windows.forEach(function(w) {
-    var priceInfo = lookupPrice(data.manufacturer, data.product, data.collection, w.width, w.height);
+    var mfr = w.manufacturer || 'BXP';
+    var product = w.product || '';
+    var collection = w.collection || '';
+    var options = w.options || [];
+    var priceInfo = lookupPrice(mfr, product, collection, w.width, w.height, options);
     w._priceInfo = priceInfo; // stash for later use
+    w._mfr = mfr;
+    w._product = product;
+    w._collection = collection;
+    w._options = options;
     var priceStr = priceInfo.error ? '<span style="color:#c53030">' + priceInfo.error + '</span>' : '$' + priceInfo.customerPrice.toLocaleString();
     if (!priceInfo.error) total += priceInfo.customerPrice;
-    html += '<tr><td>' + (w.room || '—') + '</td><td>' + w.width + '" x ' + w.height + '"</td><td>' + priceStr + '</td></tr>';
+    var prodLabel = mfr + ' ' + product;
+    if (collection) prodLabel += '<br><span style="color:#4a6080;font-size:11px">' + collection + (options.length > 0 ? ' + ' + options.join(', ') : '') + '</span>';
+    else if (options.length > 0) prodLabel += '<br><span style="color:#4a6080;font-size:11px">' + options.join(', ') + '</span>';
+    html += '<tr><td>' + (w.room || '—') + '</td><td>' + prodLabel + '</td><td>' + w.width + '" x ' + w.height + '"</td><td>' + priceStr + '</td></tr>';
   });
 
   html += '</tbody></table>';
   html += '<div style="text-align:right;font-size:18px;font-weight:800;color:#1a3a5c;border-top:2px solid #e2e8f0;padding-top:10px">Total: $' + total.toLocaleString() + '</div>';
-
-  if (data.collection) {
-    html = '<p style="font-size:13px;color:#4a6080;margin-bottom:10px">Collection: <strong>' + data.collection + '</strong></p>' + html;
-  }
 
   document.getElementById('scanResultsBody').innerHTML = html;
   document.getElementById('scanResults').classList.add('show');
@@ -1969,20 +1989,25 @@ function confirmScanResults() {
   var added = 0;
 
   data.windows.forEach(function(w) {
-    var priceInfo = w._priceInfo || lookupPrice(data.manufacturer, data.product, data.collection, w.width, w.height);
+    var mfr = w._mfr || w.manufacturer || 'BXP';
+    var product = w._product || w.product || '';
+    var collection = w._collection || w.collection || '';
+    var options = w._options || w.options || [];
+    var priceInfo = w._priceInfo || lookupPrice(mfr, product, collection, w.width, w.height, options);
     if (priceInfo.error) return; // skip windows that couldn't be priced
 
+    var optionsStr = options.length > 0 ? ' + ' + options.join(', ') : '';
     currentQuote.push({
       id: Date.now() + added,
       room: w.room || '',
-      manufacturer: data.manufacturer,
-      product: data.product,
-      collection: priceInfo.collectionUsed || data.collection || '',
+      manufacturer: mfr,
+      product: product,
+      collection: priceInfo.collectionUsed || collection,
       width: w.width,
       height: w.height,
       msrp: priceInfo.msrp,
       customerPrice: priceInfo.customerPrice,
-      descLine: data.product + ' · ' + (priceInfo.collectionUsed || data.collection || '')
+      descLine: product + ' · ' + (priceInfo.collectionUsed || collection) + optionsStr
     });
     added++;
   });
@@ -2002,7 +2027,7 @@ function confirmScanResults() {
 // ============================================================
 // PROGRAMMATIC PRICE LOOKUP
 // ============================================================
-function lookupPrice(manufacturer, product, collection, width, height) {
+function lookupPrice(manufacturer, product, collection, width, height, options) {
   var mfr = (manufacturer || '').toUpperCase();
   var key = PRODUCT_KEY[product];
   if (!key) return { error: 'Unknown product' };
@@ -2112,9 +2137,25 @@ function lookupPrice(manufacturer, product, collection, width, height) {
   var msrp = row[String(wB)];
   if (msrp === undefined || msrp === null) return { error: 'No price for this size' };
 
+  // Handle surcharges for BXP Roller Shade options
+  var surchargeTotal = 0;
+  var opts = options || [];
+  if (key === 'roller' && opts.length > 0) {
+    var sWB = getBracket(width, BXP_ROLLER_SURCHARGE_BRACKETS);
+    if (sWB) {
+      opts.forEach(function(opt) {
+        var optLower = opt.toLowerCase();
+        if (optLower.indexOf('cassette') >= 0) surchargeTotal += (BXP_ROLLER_CASSETTE_PRICES[String(sWB)] || 0);
+        else if (optLower.indexOf('fascia') >= 0) surchargeTotal += (BXP_ROLLER_FASCIA_PRICES[String(sWB)] || 0);
+        if (optLower.indexOf('cordless') >= 0) surchargeTotal += (BXP_ROLLER_CORDLESS_PRICES[String(sWB)] || 0);
+      });
+    }
+  }
+
+  var totalMsrp = msrp + surchargeTotal;
   return {
-    msrp: msrp,
-    customerPrice: Math.round(msrp * costFactor),
+    msrp: totalMsrp,
+    customerPrice: Math.round(totalMsrp * costFactor),
     wB: wB,
     hB: hB,
     collectionUsed: collectionUsed
