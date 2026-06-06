@@ -1245,9 +1245,37 @@ function addToQuote() {
   if (!currentResult) return;
   var room = (document.getElementById('inp-room').value || '').trim();
   var qty = parseInt(document.getElementById('inp-qty').value) || 1;
-  for (var q = 0; q < qty; q++) {
-    currentQuote.push(Object.assign({}, currentResult, { id: Date.now() + q, room: room }));
+  var unitPrice = currentResult.customerPrice;
+
+  // Find an existing line item with same room, dimensions, and product details
+  var existing = null;
+  for (var i = 0; i < currentQuote.length; i++) {
+    var item = currentQuote[i];
+    if (item.room === room &&
+        item.width === currentResult.width &&
+        item.height === currentResult.height &&
+        (item.descLine || '') === (currentResult.descLine || '') &&
+        (item.manufacturer || 'BXP') === (currentResult.manufacturer || 'BXP')) {
+      existing = item;
+      break;
+    }
   }
+
+  if (existing) {
+    var existingUnit = existing.unitPrice !== undefined ? existing.unitPrice : existing.customerPrice / (existing.qty || 1);
+    existing.qty = (existing.qty || 1) + qty;
+    existing.unitPrice = existingUnit;
+    existing.customerPrice = existingUnit * existing.qty;
+  } else {
+    currentQuote.push(Object.assign({}, currentResult, {
+      id: Date.now(),
+      room: room,
+      qty: qty,
+      unitPrice: unitPrice,
+      customerPrice: unitPrice * qty
+    }));
+  }
+
   document.getElementById('inp-qty').value = 1; // reset qty after adding
   renderCurrentQuote();
   updateBadge();
@@ -1310,9 +1338,10 @@ function renderCurrentQuote() {
 
   container.innerHTML = currentQuote.map(function(w, i) {
     var roomLabel = w.room ? '<span style="color:#2d6a9f;font-weight:600"> \u2014 ' + w.room + '</span>' : '';
+    var lineLabel = (w.qty && w.qty > 1) ? (w.qty + ' Windows') : ('Window ' + (i + 1));
     return '<div class="quote-item">' +
       '<div class="quote-item-info">' +
-        '<strong>Window ' + (i+1) + ': ' + w.width + '\u201d \u00d7 ' + w.height + '\u201d' + roomLabel + '</strong><br>' +
+        '<strong>' + lineLabel + roomLabel + '</strong><br>' +
         formatWindowInfo(w) +
       '</div>' +
       '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">' +
@@ -1324,7 +1353,8 @@ function renderCurrentQuote() {
 }
 
 function updateBadge() {
-  document.getElementById('windowCount').textContent = currentQuote.length;
+  var total = currentQuote.reduce(function(s, w) { return s + (w.qty || 1); }, 0);
+  document.getElementById('windowCount').textContent = total;
 }
 
 // ============================================================
@@ -1375,7 +1405,7 @@ function renderSavedQuotes() {
         '<div class="saved-quote-name">' + q.name + '</div>' +
         '<div class="saved-quote-date">' + q.date + '</div>' +
       '</div>' +
-      '<div class="saved-quote-summary">' + q.windows.length + ' window' + (q.windows.length !== 1 ? 's' : '') + '</div>' +
+      '<div class="saved-quote-summary">' + (function(){ var c = q.windows.reduce(function(s,w){ return s + (w.qty||1); }, 0); return c + ' window' + (c !== 1 ? 's' : ''); })() + '</div>' +
       '<div class="saved-quote-total">$' + q.total.toLocaleString() + '</div>' +
       '<div class="saved-quote-actions">' +
         '<button class="btn-sm btn-view" onclick="viewQuote(' + q.id + ')">View Details</button>' +
@@ -1401,9 +1431,10 @@ function viewQuote(id) {
     '<p style="color:#7a8fa6;font-size:13px;margin-bottom:14px">Saved on ' + quote.date + '</p>' +
     quote.windows.map(function(w, i) {
       var roomLabel = w.room ? '<span style="color:#2d6a9f;font-weight:600"> \u2014 ' + w.room + '</span>' : '';
+      var lineLabel = (w.qty && w.qty > 1) ? (w.qty + ' Windows') : ('Window ' + (i + 1));
       return '<div class="quote-item">' +
         '<div class="quote-item-info">' +
-          '<strong>Window ' + (i+1) + ': ' + w.width + '\u201d \u00d7 ' + w.height + '\u201d' + roomLabel + '</strong><br>' +
+          '<strong>' + lineLabel + roomLabel + '</strong><br>' +
           formatWindowInfo(w) +
         '</div>' +
         '<div class="quote-item-price">$' + w.customerPrice.toLocaleString() + '</div>' +
@@ -1452,9 +1483,8 @@ function buildPrintHTML(title, date, windows, total) {
     return '<tr>' +
       '<td>' + (i + 1) + '</td>' +
       '<td>' + room + '</td>' +
-      '<td>' + mfr + ' · ' + prod + '<br><span style="color:#4a6080;font-size:11px">' + detail + '</span></td>' +
-      '<td>' + w.width + '” × ' + w.height + '”</td>' +
-      '<td class="price-col">$' + w.customerPrice.toLocaleString() + '</td>' +
+      '<td>' + mfr + ' · ' + prod + (w.qty && w.qty > 1 ? ' <span style=”color:#2d6a9f;font-size:11px”>(' + w.qty + ' windows)</span>' : '') + '<br><span style=”color:#4a6080;font-size:11px”>' + detail + '</span></td>' +
+      '<td class=”price-col”>$' + w.customerPrice.toLocaleString() + '</td>' +
     '</tr>';
   }).join('');
 
@@ -1468,7 +1498,7 @@ function buildPrintHTML(title, date, windows, total) {
     '</div>' +
     '<table class="print-table">' +
       '<thead><tr>' +
-        '<th>#</th><th>Room</th><th>Product</th><th>Size</th><th style="text-align:right">Price</th>' +
+        '<th>#</th><th>Room</th><th>Product</th><th style="text-align:right">Price</th>' +
       '</tr></thead>' +
       '<tbody>' + rows + '</tbody>' +
     '</table>' +
@@ -1708,7 +1738,7 @@ function calculateAltaAluminum(width, height, errEl) {
   }
   var costFactor = COST_FACTORS['alta_aluminum'];
   var msrp = price;
-  var customerPrice = Math.round(msrp * costFactor);
+  var customerPrice = Math.round(msrp * costFactor) + 12;
   showPriceResult(msrp, customerPrice,
     'ALTA · Aluminum Blinds\n' +
     currentAltaAluCollection +
@@ -1736,7 +1766,7 @@ function calculateAltaFauxwood(width, height, errEl) {
   }
   var costFactor = COST_FACTORS['alta_fauxwood'];
   var msrp = price;
-  var customerPrice = Math.round(msrp * costFactor);
+  var customerPrice = Math.round(msrp * costFactor) + 12;
   showPriceResult(msrp, customerPrice,
     'ALTA · Faux Wood Blinds\n' +
     currentAltaFWCollection +
@@ -1764,7 +1794,7 @@ function calculateAltaRealwood(width, height, errEl) {
   }
   var costFactor = COST_FACTORS['alta_realwood'];
   var msrp = price;
-  var customerPrice = Math.round(msrp * costFactor);
+  var customerPrice = Math.round(msrp * costFactor) + 12;
   showPriceResult(msrp, customerPrice,
     'ALTA · Real Wood Blinds\n' +
     currentAltaRWCollection +
@@ -1793,7 +1823,7 @@ function calculateAltaRoller(width, height, errEl) {
   }
   var costFactor = COST_FACTORS['alta_roller'];
   var msrp = price;
-  var customerPrice = Math.round(msrp * costFactor);
+  var customerPrice = Math.round(msrp * costFactor) + 12;
   showPriceResult(msrp, customerPrice,
     'ALTA · Roller Shades\n' +
     currentAltaRollerCollection +
@@ -1840,7 +1870,7 @@ function calculateAltaCellular(width, height, errEl) {
   if (motor === 'motor') { motorCost = 300; optionsList.push('Motorized (+$300)'); }
 
   var totalMsrp = msrp + surchargeTotal;
-  var customerPrice = Math.round(totalMsrp * costFactor) + motorCost;
+  var customerPrice = Math.round(totalMsrp * costFactor) + motorCost + 12;
   var optionsText = optionsList.length > 0 ? '\nOptions: ' + optionsList.join(', ') : '';
 
   showPriceResult(totalMsrp, customerPrice,
@@ -1870,7 +1900,7 @@ function calculateAltaWoven(width, height, errEl) {
   }
   var costFactor = COST_FACTORS['alta_woven'];
   var msrp = price;
-  var customerPrice = Math.round(msrp * costFactor);
+  var customerPrice = Math.round(msrp * costFactor) + 12;
   showPriceResult(msrp, customerPrice,
     'ALTA · Woven Woods\n' +
     currentAltaWovenCollection +
@@ -1898,7 +1928,7 @@ function calculateAltaZebra(width, height, errEl) {
   }
   var costFactor = COST_FACTORS['alta_zebra'];
   var msrp = price;
-  var customerPrice = Math.round(msrp * costFactor);
+  var customerPrice = Math.round(msrp * costFactor) + 12;
   showPriceResult(msrp, customerPrice,
     'ALTA · Zebra Shades\n' +
     currentAltaZebraCollection +
